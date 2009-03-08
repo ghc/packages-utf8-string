@@ -15,6 +15,7 @@ module System.IO.UTF8 (
       print
     , putStr
     , putStrLn
+    , getChar
     , getLine
     , readLn
     , openBinaryFile
@@ -71,6 +72,18 @@ putStr x = IO.putStr (encodeString x)
 -- | The same as 'putStr', but adds a newline character.
 putStrLn :: String -> IO ()
 putStrLn x = IO.putStrLn (encodeString x)
+
+-- | Write a UTF8 character to the standard output device.
+putChar x :: Char -> IO ()
+putChar x = IO.putStr $ encodeString [x]
+
+-- | Read a UTF8 character from the standard input device.
+getChar :: IO Char
+getChar = do  c <- getChar
+              rs <- sub (head$findIndices(`inRange`ord c) [(0x00,0x7f),(0xc2,0xdf),(0xe0,0xef),(0xf0,0xf7),(0xf8,0xfb),(0xfc,0xfd)]) []
+              return$head$decodeString(c:rs)
+  where sub c xs | c <= 0    = return$reverse xs
+                 | otherwise = getChar >>= sub (c-1) . (:xs)
 
 -- | Read a UTF8 line from the standard input device
 getLine :: IO String
