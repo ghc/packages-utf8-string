@@ -31,10 +31,12 @@ module System.IO.UTF8 (
     , hPutStrLn
   ) where
 
-import Control.Monad (liftM)
+import Control.Monad (liftM, replicateM)
 import Data.Word (Word8)
-import Prelude (String, (=<<), (.), map, Enum(toEnum, fromEnum), Read,
-                Show(..))
+import Prelude (Char, String, (=<<), (.), map, Enum(toEnum, fromEnum), Read,
+                Show(..), return, Maybe(..))
+import Data.List (findIndex)
+import Data.Ix (inRange)
 import System.IO (Handle, IO, FilePath, IOMode(AppendMode, ReadMode, WriteMode))
 import qualified System.IO as IO
 import Control.Exception (bracket)
@@ -74,16 +76,21 @@ putStrLn :: String -> IO ()
 putStrLn x = IO.putStrLn (encodeString x)
 
 -- | Write a UTF8 character to the standard output device.
-putChar x :: Char -> IO ()
-putChar x = IO.putStr $ encodeString [x]
+putChar :: Char -> IO ()
+putChar x = putStr [x]
 
 -- | Read a UTF8 character from the standard input device.
 getChar :: IO Char
-getChar = do  c <- getChar
-              rs <- sub (head$findIndices(`inRange`ord c) [(0x00,0x7f),(0xc2,0xdf),(0xe0,0xef),(0xf0,0xf7),(0xf8,0xfb),(0xfc,0xfd)]) []
-              return$head$decodeString(c:rs)
-  where sub c xs | c <= 0    = return$reverse xs
-                 | otherwise = getChar >>= sub (c-1) . (:xs)
+getChar = do
+  c <- IO.getChar
+  let ranges = [(0x00,0x7f), (0xc2,0xdf), (0xe0,0xef),
+                (0xf0,0xf7), (0xf8,0xfb), (0xfc,0xfd)]
+  case findIndex (`inRange` fromEnum c) ranges of
+    Nothing -> return replacement_character
+    Just n  -> do rs <- replicateM n IO.getChar
+                  case decodeString (c:rs) of
+                    [x] -> return x
+                    _   -> return replacement_character
 
 -- | Read a UTF8 line from the standard input device
 getLine :: IO String
